@@ -1,0 +1,21 @@
+{
+    "username": "Scary Terry",
+    "monitor_number": 1,
+    "your_faction": "Celestials",
+    "opponent_faction": "Vanguard",
+    "map": "Broken Crown",
+    "maps": [
+        "Broken Crown",
+        "Boneyard",
+        "Isle of Dread",
+        "Titan's Causeway",
+        "Jagged Maw",
+        "Secluded Grove",
+        "Lost Hope"
+    ],
+    "factions": [
+        "Vanguard",
+        "Infernals",
+        "Celestials"
+    ]
+}
