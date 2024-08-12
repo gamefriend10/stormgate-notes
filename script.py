@@ -1,9 +1,9 @@
+import sys
 import cv2
 import pytesseract
 from pytesseract import Output
 import numpy as np
 from PIL import Image
-import keyboard
 import time
 import mss
 import threading
@@ -11,8 +11,18 @@ import tkinter as tk
 import json
 import os
 
-# Configure path to tesseract executable
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# Determine if the script is running as a PyInstaller bundle
+if getattr(sys, 'frozen', False):
+    # If so, set the Tesseract executable path relative to the executable location
+    tesseract_exe_path = os.path.join(sys._MEIPASS, 'tesseract.exe')
+    tessdata_dir = os.path.join(sys._MEIPASS, 'tessdata')
+else:
+    # Use the regular path if running the script directly
+    tesseract_exe_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    tessdata_dir = r"C:\Program Files\Tesseract-OCR\tessdata"
+
+pytesseract.pytesseract.tesseract_cmd = tesseract_exe_path
+os.environ['TESSDATA_PREFIX'] = tessdata_dir
 
 # Program config
 font = ("Arial", 12, "")
@@ -25,16 +35,28 @@ config = {}
 def get_all_file_names(folder_path):
     return [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
 
-def preprocess_image(image, scale_factor=0.5):
-    # Convert to PIL Image
+# Specifically for finding images
+def preprocess_image_for_image(image, scale_factor=0.5):
+    # Convert to PIL Image to rescale
     pil_image = Image.frombytes('RGB', image.size, image.rgb)
     pil_image = pil_image.resize((int(pil_image.width * scale_factor), int(pil_image.height * scale_factor)))
 
     # Convert image to grayscale
     gray = cv2.cvtColor(np.array(pil_image), cv2.COLOR_BGR2GRAY)
     
-    # return gray
     return gray
+
+# Specifically for finding text
+def preprocess_image_for_text(image):
+    gray = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2GRAY)
+    _, thresholded = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    
+    # Display the result (Optional)
+    # cv2.imshow('Image', np.array(thresholded))
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    return thresholded
 
 # Assumes all images to search for are in 'faction_images' folder
 # Also assumes that each faction image name corresponds to factions specified in config.json
@@ -70,9 +92,9 @@ def check_for_images(processed_image):
             # processed_image = cv2.rectangle(np.array(processed_image), top_left, bottom_right, (0, 255, 0), 2)
             
     # Display the result (Optional)
-    cv2.imshow('Image', np.array(processed_image))
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # cv2.imshow('Image', np.array(processed_image))
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
     
     return res
 
@@ -133,24 +155,22 @@ def core_loop():
             # Capture one entire monitor
             screenshot = sct.grab(sct.monitors[int(monitor_number_input.get())])
             
-            # Preprocess the image
+            # Preprocess the image for image search
             scale_factor = 0.5 # to reduce image size and therefore computer resource load
-            processed_image = preprocess_image(screenshot, scale_factor)
-            screenshot_middle_x = screenshot.width * scale_factor / 2
+            processed_image_for_image = preprocess_image_for_image(screenshot, scale_factor)
+            screenshot_middle_x = screenshot.width / 2 * scale_factor
 
-            # Preprocess the image further for text
-            # Apply binary thresholding (to further isolate white text, may not be necessary)
-            _, binary = cv2.threshold(processed_image, 128, 255, cv2.THRESH_BINARY)
+            # Preprocess the image for text search
+            processed_image_for_text = preprocess_image_for_text(screenshot)
 
             map_names = load_from_config("maps")
-
-            map = check_for_text_existence(binary, map_names)
+            map = check_for_text_existence(processed_image_for_text, map_names)
             if not map:
                 print("No map found")
                 continue
 
             # Find factions
-            factions = check_for_images(processed_image)
+            factions = check_for_images(processed_image_for_image)
             if not factions:
                 print("No factions found")
                 continue
@@ -169,7 +189,7 @@ def core_loop():
                     left_faction = factions[1]
 
             # Find username
-            username_coords = check_for_text_location(binary, username_input.get())
+            username_coords = check_for_text_location(processed_image_for_text, username_input.get())
             if not username_coords:
                 print("No username found")
                 continue
@@ -188,7 +208,12 @@ def core_loop():
             # Change map
             map_var.set(map)
 
-            time.sleep(10)
+            # Call button functions
+            on_update_your_faction(your_faction_var.get())
+            on_update_map(map_var.get())
+
+    start_button.config(state=tk.NORMAL)
+    status_label.config(text="Status: Stopped")
 
 def save_config():
     print("Saving config...")
@@ -232,14 +257,21 @@ def load_notes(notes_text_input, notes_file_name):
 def start():
     global running
     running = True
+    start_button.config(state=tk.DISABLED)
     status_label.config(text="Status: Running")
     # Start the core loop in a new thread to keep the UI responsive
     threading.Thread(target=core_loop, args=(), daemon=True).start()
 
 def stop():
     global running
+
+    if not running:
+        return
+    
     running = False
-    status_label.config(text="Status: Stopped")
+    status_label.config(text="Status: Pausing...")
+
+    # Start_button is reenabled when core_loop ends
 
 def on_close():
     global running
@@ -350,6 +382,12 @@ def load_new_map_matchup_notes():
     map_matchup_notes_file_name = "Map" + map_name_no_spaces + "_" + matchup + "_Notes.txt"
     load_notes(map_matchup_notes_input, map_matchup_notes_file_name)
 
+def test_monitor():
+    with mss.mss() as sct:
+        screenshot = sct.grab(sct.monitors[int(monitor_number_input.get())])
+        cv2.imshow('Image', np.array(screenshot))
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
 # Load config
 print("Loading config...")
@@ -375,6 +413,8 @@ monitor_number_input_label = tk.Label(root, text="Monitor Number:")
 monitor_number_var = tk.StringVar(root)
 monitor_number_var.set(load_from_config("monitor_number"))
 monitor_number_input = tk.Spinbox(root, from_=1, to=10, textvariable=monitor_number_var)
+
+test_monitor_button = tk.Button(root, text="Test Monitor", command=test_monitor)
 
 general_notes_input_label = tk.Label(root, text="General Notes:")
 general_notes_input = tk.Text(root, height=text_bot_height, width=40, font=font)
@@ -427,6 +467,7 @@ username_input.grid(row=1, column=1, columnspan=2)
 
 monitor_number_input_label.grid(row=2, column=0)
 monitor_number_input.grid(row=2, column=1, columnspan=2)
+test_monitor_button.grid(row=2, column=3)
 
 general_notes_input_label.grid(row=3, column=0)
 general_notes_input.grid(row=3, column=1, columnspan=4, sticky="nsew")

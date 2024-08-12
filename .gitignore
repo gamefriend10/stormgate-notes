@@ -1,0 +1,4 @@
+saved_input/*.txt
+dist
+build
+*.spec
