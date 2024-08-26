@@ -1,4 +1,2 @@
 saved_input/*.txt
-dist
-build
-*.spec
+stormgate-notes.zip

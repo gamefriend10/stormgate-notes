@@ -149,6 +149,8 @@ def check_for_text_location(processed_image, target_text):
 
 def core_loop():
     while running:
+        time.sleep(2)
+        
         # Core loop
         with mss.mss() as sct:
             # Capture one entire monitor
@@ -210,8 +212,6 @@ def core_loop():
             # Call button functions
             on_update_your_faction(your_faction_var.get())
             on_update_map(map_var.get())
-
-        time.sleep(2)
 
     start_button.config(state=tk.NORMAL)
     status_label.config(text="Status: Stopped")
