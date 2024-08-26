@@ -26,7 +26,7 @@ os.environ['TESSDATA_PREFIX'] = tessdata_dir
 
 # Program config
 font = ("Arial", 12, "")
-text_bot_height = 9
+text_bot_height = 8
 
 # Global variables
 running = False
@@ -149,7 +149,6 @@ def check_for_text_location(processed_image, target_text):
 
 def core_loop():
     while running:
-        time.sleep(1)
         # Core loop
         with mss.mss() as sct:
             # Capture one entire monitor
@@ -211,6 +210,8 @@ def core_loop():
             # Call button functions
             on_update_your_faction(your_faction_var.get())
             on_update_map(map_var.get())
+
+        time.sleep(2)
 
     start_button.config(state=tk.NORMAL)
     status_label.config(text="Status: Stopped")
@@ -286,8 +287,10 @@ def on_close():
 
 def on_update_your_faction(your_faction):
     save_current_faction_notes()
+    save_current_map_faction_notes()
 
-    load_current_faction_notes()
+    load_new_faction_notes()
+    load_new_map_faction_notes()
     
     update_matchup()
 
@@ -295,7 +298,7 @@ def save_current_faction_notes():
     current_notes_file_name = "General_" + load_from_config("your_faction") + "_Notes.txt"
     save_notes(faction_notes_input, current_notes_file_name)
 
-def load_current_faction_notes():
+def load_new_faction_notes():
     your_faction = your_faction_var.get()
 
     # Update the general faction notes label
@@ -340,9 +343,11 @@ def get_matchup(your_faction_string, opponent_faction_string):
 
 def on_update_map(map):
     save_current_map_notes()
+    save_current_map_faction_notes()
     save_current_map_matchup_notes()
 
     load_new_map_notes()
+    load_new_map_faction_notes()
     load_new_map_matchup_notes()
 
     # Set new map to in-memory (as opposed to saved to txt) config
@@ -352,6 +357,12 @@ def save_current_map_notes():
     map_name_no_spaces = load_from_config("map").replace(" ", "")
     current_notes_file_name = "General_Map" + map_name_no_spaces + "_Notes.txt"
     save_notes(map_notes_input, current_notes_file_name)
+
+def save_current_map_faction_notes():
+    current_faction = load_from_config("your_faction")
+    map_name_no_spaces = load_from_config("map").replace(" ", "")
+    current_notes_file_name = "Map" + map_name_no_spaces + "_" + current_faction + "_Notes.txt"
+    save_notes(map_faction_notes_input, current_notes_file_name)
 
 def save_current_map_matchup_notes():
     current_matchup = get_matchup(load_from_config("your_faction"), load_from_config("opponent_faction"))
@@ -369,6 +380,18 @@ def load_new_map_notes():
     map_name_no_spaces = map.replace(" ", "")
     map_notes_file_name = "General_Map" + map_name_no_spaces + "_Notes.txt"
     load_notes(map_notes_input, map_notes_file_name)
+
+def load_new_map_faction_notes():
+    map = map_var.get()
+    faction = your_faction_var.get()
+
+    # Update map notes label
+    map_faction_notes_input_label.config(text=map_faction_notes_input_label_string.format(map=map, faction=faction))
+
+    # Load in new map notes
+    map_name_no_spaces = map.replace(" ", "")
+    map_notes_file_name = "Map" + map_name_no_spaces + "_" + faction + "_Notes.txt"
+    load_notes(map_faction_notes_input, map_notes_file_name)
 
 def load_new_map_matchup_notes():
     matchup = get_matchup(your_faction_var.get(), opponent_faction_var.get())
@@ -417,7 +440,7 @@ monitor_number_input = tk.Spinbox(root, from_=1, to=10, textvariable=monitor_num
 test_monitor_button = tk.Button(root, text="Test Monitor", command=test_monitor)
 
 general_notes_input_label = tk.Label(root, text="General Notes:")
-general_notes_input = tk.Text(root, height=text_bot_height, width=40, font=font)
+general_notes_input = tk.Text(root, height=6, width=40, font=font)
 load_notes(general_notes_input, 'General_Notes.txt')
 
 factions = load_from_config("factions")
@@ -435,7 +458,7 @@ opponent_faction_dropdown = tk.OptionMenu(root, opponent_faction_var, *factions,
 faction_notes_input_label_string = "General <{your_faction}> Notes:"
 faction_notes_input_label = tk.Label(root, text=faction_notes_input_label_string)
 faction_notes_input = tk.Text(root, height=text_bot_height, width=40, font=font)
-load_current_faction_notes()
+load_new_faction_notes()
 
 matchup_notes_input_label_string = "General <{matchup}> Notes:"
 matchup_notes_input_label = tk.Label(root, text=matchup_notes_input_label_string)
@@ -452,6 +475,11 @@ map_notes_input_label_string = "General <{map}> Notes:"
 map_notes_input_label = tk.Label(root, text=map_notes_input_label_string)
 map_notes_input = tk.Text(root, height=text_bot_height, width=40, font=font)
 load_new_map_notes()
+
+map_faction_notes_input_label_string = "<{map}> <{faction}> Notes:"
+map_faction_notes_input_label = tk.Label(root, text=map_faction_notes_input_label_string)
+map_faction_notes_input = tk.Text(root, height=text_bot_height, width=40, font=font)
+load_new_map_faction_notes()
 
 map_matchup_notes_input_label_string = "<{map}> <{matchup}> Notes:"
 map_matchup_notes_input_label = tk.Label(root, text=map_matchup_notes_input_label_string)
@@ -489,8 +517,11 @@ map_dropdown.grid(row=7, column=2)
 map_notes_input_label.grid(row=8, column=0)
 map_notes_input.grid(row=8, column=1, columnspan=4, sticky="nsew")
 
-map_matchup_notes_input_label.grid(row=9, column=0)
-map_matchup_notes_input.grid(row=9, column=1, columnspan=4, sticky="nsew")
+map_faction_notes_input_label.grid(row=9, column=0)
+map_faction_notes_input.grid(row=9, column=1, columnspan=4, sticky="nsew")
+
+map_matchup_notes_input_label.grid(row=10, column=0)
+map_matchup_notes_input.grid(row=10, column=1, columnspan=4, sticky="nsew")
 
 # Make all rows and columns resizable
 total_rows=10
